@@ -21,7 +21,7 @@ local Frame = Instance.new("Frame", ScreenGui)
 Frame.Size = UDim2.new(0, 220, 0, 200)
 Frame.Position = UDim2.new(0.5, -110, 0.5, -100)
 Frame.BackgroundTransparency = 0.4
-Frame.Visible = false
+Frame.Visible = true
 
 local function makeToggle(text, y, callback)
     local btn = Instance.new("TextButton", Frame)
