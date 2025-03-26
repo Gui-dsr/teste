@@ -1,120 +1,115 @@
---==== CONFIGURAÇÃO ====
-local UserInputService = game:GetService("UserInputService")
-local RunService        = game:GetService("RunService")
-local CoreGui           = game:GetService("CoreGui")
-local Camera            = workspace.CurrentCamera
+-- UtilityMenu.lua
 
-local menuKey       = Enum.KeyCode.K
-local holding       = false
-local espRocks      = false
-local espCoal       = false
-local clickEnabled  = false
+local UIS = game:GetService("UserInputService")
+local Run = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local Camera = workspace.CurrentCamera
+local player = game.Players.LocalPlayer
 
-local walkSpeed     = 16
-local clickDelay    = 0.1
+local menuKey = Enum.KeyCode.K
+local clickKey = Enum.KeyCode.F
 
---==== GUI ====
-local ScreenGui = Instance.new("ScreenGui", CoreGui)
-ScreenGui.Name = "UtilityMenu"
+-- State
+local autoClickState = { value = false }
+local speedState = { value = 16 }
+local clickState = { value = 100 }
+local espState = { value = false }
 
-local Frame = Instance.new("Frame", ScreenGui)
-Frame.Size = UDim2.new(0, 220, 0, 200)
-Frame.Position = UDim2.new(0.5, -110, 0.5, -100)
-Frame.BackgroundTransparency = 0.4
-Frame.Visible = true
+-- GUI Setup
+local screen = Instance.new("ScreenGui", CoreGui)
+local frame = Instance.new("Frame", screen)
+frame.Size = UDim2.new(0, 260, 0, 200)
+frame.Position = UDim2.new(0.5, -130, 0.5, -100)
+frame.BackgroundColor3 = Color3.fromRGB(35,35,35)
 
-local function makeToggle(text, y, callback)
-    local btn = Instance.new("TextButton", Frame)
-    btn.Text = text
-    btn.Size = UDim2.new(1, -20, 0, 30)
-    btn.Position = UDim2.new(0, 10, 0, y)
+local title = Instance.new("TextLabel", frame)
+title.Text = "Utility Menu"
+title.Size = UDim2.new(1,0,0,40)
+title.BackgroundTransparency = 1
+title.Font = Enum.Font.GothamBold
+title.TextSize = 24
+
+-- Helper functions
+local function toggleButton(text, y, state)
+    local btn = Instance.new("TextButton", frame)
+    btn.Text = text..": OFF"
+    btn.Size = UDim2.new(0.9,0,0,30)
+    btn.Position = UDim2.new(0.05,0,0,y)
     btn.MouseButton1Click:Connect(function()
-        callback()
-        btn.Text = text.." : "..(callback.flag and "ON" or "OFF")
-    end)
-    return btn
-end
-
-local function makeSlider(label, y, min, max, default, callback)
-    local sliderLabel = Instance.new("TextLabel", Frame)
-    sliderLabel.Text = label..": "..default
-    sliderLabel.Size = UDim2.new(1, -20, 0, 20)
-    sliderLabel.Position = UDim2.new(0, 10, 0, y)
-
-    local slider = Instance.new("TextButton", Frame)
-    slider.Size = UDim2.new(1, -20, 0, 10)
-    slider.Position = UDim2.new(0, 10, 0, y+20)
-    slider.BackgroundColor3 = Color3.fromRGB(200,200,200)
-
-    local dragging = false
-    slider.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true end
-    end)
-    slider.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
-    end)
-    RunService.RenderStepped:Connect(function()
-        if dragging then
-            local ratio = math.clamp((UserInputService:GetMouseLocation().X - slider.AbsolutePosition.X)/slider.AbsoluteSize.X, 0, 1)
-            local value = math.floor(min + (max-min)*ratio)
-            callback(value)
-            sliderLabel.Text = label..": "..value
-        end
+        state.value = not state.value
+        btn.Text = text..(state.value and ": ON" or ": OFF")
     end)
 end
 
--- Toggles
-local btnESP_Rocks = makeToggle("ESP Rocks", 10, function() espRocks = not espRocks; makeToggle.flag = espRocks end)
-local btnESP_Coal  = makeToggle("ESP Coal", 50, function() espCoal = not espCoal; makeToggle.flag = espCoal end)
+local function stepper(label, y, state, step, min, max, apply)
+    local txt = Instance.new("TextLabel", frame)
+    txt.Text = label..": "..state.value
+    txt.Size = UDim2.new(0.6,0,0,25)
+    txt.Position = UDim2.new(0.05,0,0,y)
+    txt.BackgroundTransparency = 1
 
--- Sliders
-makeSlider("WalkSpeed", 90, 16, 500, walkSpeed, function(v) walkSpeed = v; game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = v end)
-makeSlider("Click Delay (ms)", 130, 1, 500, clickDelay*1000, function(v) clickDelay = v/1000 end)
+    local function makeBtn(sign, x)
+        local b = Instance.new("TextButton", frame)
+        b.Text = sign
+        b.Size = UDim2.new(0.15,0,0,25)
+        b.Position = UDim2.new(x,0,0,y)
+        b.MouseButton1Click:Connect(function()
+            state.value = math.clamp(state.value + (sign=="+" and step or -step), min, max)
+            txt.Text = label..": "..state.value
+            if apply then apply(state.value) end
+        end)
+    end
 
---==== KEYBINDS ====
-UserInputService.InputBegan:Connect(function(input, gp)
+    makeBtn("+", 0.7)
+    makeBtn("-", 0.85)
+end
+
+toggleButton("ESP All Parts", 50, espState)
+stepper("WalkSpeed", 90, speedState, 10, 16, 500, function(v) player.Character.Humanoid.WalkSpeed = v end)
+stepper("Click Delay (ms)", 130, clickState, 10, 10, 1000)
+
+frame.Visible = true
+
+-- Input handlers
+UIS.InputBegan:Connect(function(inp, gp)
     if gp then return end
-    if input.KeyCode == menuKey then Frame.Visible = not Frame.Visible end
-    if input.KeyCode == Enum.KeyCode.F then clickEnabled = not clickEnabled end
+    if inp.KeyCode == menuKey then frame.Visible = not frame.Visible end
+    if inp.KeyCode == clickKey then autoClickState.value = not autoClickState.value end
 end)
 
---==== ESP LOGIC ====
-local function drawBox(part)
-    local box = Drawing.new("Square")
-    box.Thickness = 1
-    box.Filled = false
-    box.Transparency = 1
-    return box
-end
-
-local espBoxes = {}
-RunService.RenderStepped:Connect(function()
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if (espRocks and obj.Name == "Rock") or (espCoal and obj.Name == "Coal") then
-            if obj:IsA("BasePart") then
-                if not espBoxes[obj] then espBoxes[obj] = drawBox(obj) end
-                local box = espBoxes[obj]
-                local pos, onscreen = Camera:WorldToViewportPoint(obj.Position)
-                if onscreen then
-                    box.Visible = true
-                    box.Position = Vector2.new(pos.X-25, pos.Y-25)
-                    box.Size = Vector2.new(50, 50)
-                else box.Visible = false end
-            end
-        elseif espBoxes[obj] then
-            espBoxes[obj]:Remove()
-            espBoxes[obj] = nil
+-- Auto‑click loop
+spawn(function()
+    while true do
+        if autoClickState.value then
+            mouse1press(); task.wait(clickState.value/1000); mouse1release()
+        else
+            task.wait()
         end
     end
 end)
 
---==== AUTO CLICKER ====
-spawn(function()
-    while true do
-        if clickEnabled then
-            mouse1press(); task.wait(clickDelay); mouse1release()
-        else
-            task.wait()
+-- ESP: draw box around every BasePart
+local boxes = {}
+Run.RenderStepped:Connect(function()
+    for _, part in ipairs(workspace:GetDescendants()) do
+        if espState.value and part:IsA("BasePart") then
+            if not boxes[part] then
+                local b = Drawing.new("Square")
+                b.Thickness, b.Filled = 1, false
+                boxes[part] = b
+            end
+            local box = boxes[part]
+            local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
+            if onScreen then
+                box.Visible = true
+                box.Position = Vector2.new(pos.X-25, pos.Y-25)
+                box.Size = Vector2.new(50,50)
+            else
+                box.Visible = false
+            end
+        elseif boxes[part] then
+            boxes[part]:Remove()
+            boxes[part] = nil
         end
     end
 end)
