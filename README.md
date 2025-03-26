@@ -3,12 +3,8 @@
 local UIS = game:GetService("UserInputService")
 local Run = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Camera = workspace.CurrentCamera
 local player = game.Players.LocalPlayer
-
--- CONFIGURAÇÃO MONEY
-local MONEY_REMOTE_NAME = "AddCash"    -- Ajuste para o nome exato do Remote
-local AMOUNT_TO_ADD     = 100000       -- Valor a adicionar
 
 local menuKey = Enum.KeyCode.K
 local clickKey = Enum.KeyCode.F
@@ -24,9 +20,9 @@ local screen = Instance.new("ScreenGui", CoreGui)
 screen.ResetOnSpawn = false
 
 local frame = Instance.new("Frame", screen)
-frame.Size = UDim2.new(0, 260, 0, 240)
-frame.Position = UDim2.new(0.5, -130, 0.5, -120)
-frame.BackgroundColor3 = Color3.new(0,0,0)
+frame.Size = UDim2.new(0, 260, 0, 200)
+frame.Position = UDim2.new(0.5, -130, 0.5, -100)
+frame.BackgroundColor3 = Color3.fromRGB(0,0,0)
 frame.BorderSizePixel = 0
 
 local title = Instance.new("TextLabel", frame)
@@ -37,72 +33,68 @@ title.Font = Enum.Font.GothamBold
 title.TextSize = 28
 title.TextColor3 = Color3.new(1,1,1)
 
-local function makeButton(parent, text, y, callback)
+local function makeButton(parent, text, posY)
     local btn = Instance.new("TextButton", parent)
     btn.Text = text
     btn.TextColor3 = Color3.new(1,1,1)
     btn.BackgroundColor3 = Color3.fromRGB(200,0,0)
     btn.Size = UDim2.new(0.9,0,0,35)
-    btn.Position = UDim2.new(0.05,0,0,y)
+    btn.Position = UDim2.new(0.05,0,0,posY)
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 24
-    btn.MouseButton1Click:Connect(callback)
     return btn
 end
 
--- Menu Controls
-makeButton(frame, "Toggle ESP", 50, function()
-    espState.value = not espState.value
-end)
-makeButton(frame, "Give Money", 95, function()
-    local remote = ReplicatedStorage:FindFirstChild(MONEY_REMOTE_NAME)
-    if remote then
-        if remote:IsA("RemoteEvent") then
-            remote:FireServer(AMOUNT_TO_ADD)
-        elseif remote:IsA("RemoteFunction") then
-            remote:InvokeServer(AMOUNT_TO_ADD)
-        end
-    else
-        warn("Remote '"..MONEY_REMOTE_NAME.."' não encontrado")
-    end
-end)
-makeButton(frame, "Toggle AutoClick (F)", 140, function()
-    autoClickState.value = not autoClickState.value
-end)
-
--- WalkSpeed stepper
-local speedLabel = Instance.new("TextLabel", frame)
-speedLabel.Text = "WalkSpeed: "..speedState.value
-speedLabel.Size = UDim2.new(0.6,0,0,30)
-speedLabel.Position = UDim2.new(0.05,0,0,185)
-speedLabel.TextColor3 = Color3.new(1,1,1)
-speedLabel.BackgroundTransparency = 1
-speedLabel.Font = Enum.Font.GothamBold
-speedLabel.TextSize = 24
-
-local function adjustSpeed(delta)
-    speedState.value = math.clamp(speedState.value + delta, 16, 500)
-    speedLabel.Text = "WalkSpeed: "..speedState.value
-    if player.Character and player.Character:FindFirstChild("Humanoid") then
-        player.Character.Humanoid.WalkSpeed = speedState.value
-    end
+local function toggleButton(label, y, state)
+    local btn = makeButton(frame, label..": OFF", y)
+    btn.MouseButton1Click:Connect(function()
+        state.value = not state.value
+        btn.Text = label..(state.value and ": ON" or ": OFF")
+    end)
+    return btn
 end
 
-makeButton(frame, "+ Speed", 185, function() adjustSpeed(10) end)
-makeButton(frame, "- Speed", 185, function() adjustSpeed(-10) end).Position = UDim2.new(0.7,0,0,185)
+local function stepper(label, y, state, step, min, max, apply)
+    local txt = Instance.new("TextLabel", frame)
+    txt.Text = label..": "..state.value
+    txt.TextColor3 = Color3.new(1,1,1)
+    txt.BackgroundTransparency = 1
+    txt.Size = UDim2.new(0.6,0,0,30)
+    txt.Position = UDim2.new(0.05,0,0,y)
+    txt.Font = Enum.Font.GothamBold
+    txt.TextSize = 24
+
+local function makeBtn(sign, x)
+        local b = makeButton(frame, sign, y)
+        b.Size = UDim2.new(0.15,0,0,30)
+        b.Position = UDim2.new(x,0,0,y)
+        b.MouseButton1Click:Connect(function()
+            state.value = math.clamp(state.value + (sign=="+" and step or -step), min, max)
+            txt.Text = label..": "..state.value
+            if apply then apply(state.value) end
+        end)
+    end
+
+makeBtn("+", 0.7)
+makeBtn("-", 0.85)
+end
+
+toggleButton("ESP All Parts", 50, espState)
+stepper("WalkSpeed", 90, speedState, 10, 16, 500, function(v)
+    if player.Character and player.Character:FindFirstChild("Humanoid") then
+        player.Character.Humanoid.WalkSpeed = v
+    end
+end)
+stepper("Click Delay (ms)", 140, clickState, 10, 10, 1000)
 
 frame.Visible = true
 
-UIS.InputBegan:Connect(function(input, gp)
-    if not gp and input.KeyCode == menuKey then
-        frame.Visible = not frame.Visible
-    end
-    if not gp and input.KeyCode == clickKey then
-        autoClickState.value = not autoClickState.value
-    end
+UIS.InputBegan:Connect(function(inp, gp)
+    if gp then return end
+    if inp.KeyCode == menuKey then frame.Visible = not frame.Visible end
+    if inp.KeyCode == clickKey then autoClickState.value = not autoClickState.value end
 end)
 
--- AutoClick Loop
 spawn(function()
     while true do
         if autoClickState.value then
@@ -116,18 +108,19 @@ spawn(function()
     end
 end)
 
--- ESP Logic (<=40 studs below)
 local boxes = {}
 Run.RenderStepped:Connect(function()
     local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
     if not root then return end
-    for _, part in ipairs(workspace:GetDescendants()) do
+
+for _, part in ipairs(workspace:GetDescendants()) do
         if espState.value and part:IsA("BasePart") then
             local dy = root.Position.Y - part.Position.Y
             if dy > 0 and dy <= 40 then
                 if not boxes[part] then
                     local b = Drawing.new("Square")
-                    b.Thickness, b.Filled, b.Color = 1, false, Color3.new(1,0,0)
+                    b.Thickness, b.Filled = 1, false
+                    b.Color = Color3.new(1,0,0)
                     boxes[part] = b
                 end
                 local box = boxes[part]
