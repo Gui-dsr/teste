@@ -7,6 +7,9 @@ local menuKey  = Enum.KeyCode.Insert
 local holding = false
 local menuVisible = true
 
+-- Delay entre cada clique (em segundos)
+local clickDelay = 0.1
+
 -- === GUI ===
 local ScreenGui = Instance.new("ScreenGui", CoreGui)
 ScreenGui.Name = "AutoClickerMenu"
@@ -25,7 +28,6 @@ local function createBindButton(text, y, callback)
     return btn
 end
 
--- Botão para setar keybind toggle
 createBindButton("Set Toggle Key ("..toggleKey.Name..")", 10, function(btn)
     btn.Text = "Pressione qualquer tecla..."
     local conn
@@ -38,7 +40,6 @@ createBindButton("Set Toggle Key ("..toggleKey.Name..")", 10, function(btn)
     end)
 end)
 
--- Botão para setar keybind menu
 createBindButton("Set Menu Key ("..menuKey.Name..")", 50, function(btn)
     btn.Text = "Pressione qualquer tecla..."
     local conn
@@ -51,16 +52,13 @@ createBindButton("Set Menu Key ("..menuKey.Name..")", 50, function(btn)
     end)
 end)
 
--- === Funcionalidades ===
+-- Função de toggle
 local function toggleHold()
     holding = not holding
-    if holding then mouse1press() else mouse1release() end
 end
 
--- Keybind handlers
 UserInputService.InputBegan:Connect(function(input, processed)
     if processed then return end
-
     if input.KeyCode == toggleKey then
         toggleHold()
     elseif input.KeyCode == menuKey then
@@ -69,10 +67,16 @@ UserInputService.InputBegan:Connect(function(input, processed)
     end
 end)
 
--- Loop para manter o clique pressionado
+-- Loop de autoclick com delay
 spawn(function()
     while true do
-        if holding then mouse1press() end
-        task.wait()
+        if holding then
+            mouse1press()
+            task.wait(clickDelay)
+            mouse1release()
+            task.wait(clickDelay)
+        else
+            task.wait()
+        end
     end
 end)
