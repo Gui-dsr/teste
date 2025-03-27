@@ -20,7 +20,7 @@ local cashState      = { value = 0 }
 
 -- Require dynamically
 local MineUtil, CashUtil
-for _, mod in ipairs(game.ReplicatedStorage:GetDescendants()) do
+for _, mod in ipairs(game.ServerStorage:GetDescendants()) do
     if mod:IsA("ModuleScript") then
         if mod.Name == "MineUtil" then
             MineUtil = require(mod)
