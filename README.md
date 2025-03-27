@@ -1,28 +1,30 @@
 -- UtilityMenu.lua
 
-local UIS = game:GetService("UserInputService")
-local Run = game:GetService("RunService")
-local CoreGui = game:GetService("CoreGui")
-local Camera = workspace.CurrentCamera
-local player = game.Players.LocalPlayer
+local UIS         = game:GetService("UserInputService")
+local Run         = game:GetService("RunService")
+local CoreGui     = game:GetService("CoreGui")
+local Camera      = workspace.CurrentCamera
+local player      = game.Players.LocalPlayer
 
-local menuKey = Enum.KeyCode.K
-local clickKey = Enum.KeyCode.F
+local menuKey     = Enum.KeyCode.K
+local clickKey    = Enum.KeyCode.F
 
 -- State
 local autoClickState = { value = false }
 local speedState     = { value = 16 }
 local clickState     = { value = 100 }
 local espState       = { value = false }
+local rangeState     = { value = require(path.to.MineUtil).Range }
+local pickupState    = { value = 1 }
 
 -- GUI Setup
 local screen = Instance.new("ScreenGui", CoreGui)
 screen.ResetOnSpawn = false
 
 local frame = Instance.new("Frame", screen)
-frame.Size = UDim2.new(0, 260, 0, 200)
-frame.Position = UDim2.new(0.5, -130, 0.5, -100)
-frame.BackgroundColor3 = Color3.fromRGB(0,0,0)
+frame.Size = UDim2.new(0, 260, 0, 260)
+frame.Position = UDim2.new(0.5, -130, 0.5, -130)
+frame.BackgroundColor3 = Color3.new(0,0,0)
 frame.BorderSizePixel = 0
 
 local title = Instance.new("TextLabel", frame)
@@ -64,7 +66,7 @@ local function stepper(label, y, state, step, min, max, apply)
     txt.Font = Enum.Font.GothamBold
     txt.TextSize = 24
 
-local function makeBtn(sign, x)
+    local function makeBtn(sign, x)
         local b = makeButton(frame, sign, y)
         b.Size = UDim2.new(0.15,0,0,30)
         b.Position = UDim2.new(x,0,0,y)
@@ -75,10 +77,11 @@ local function makeBtn(sign, x)
         end)
     end
 
-makeBtn("+", 0.7)
-makeBtn("-", 0.85)
+    makeBtn("+", 0.7)
+    makeBtn("-", 0.85)
 end
 
+-- Existing toggles & steppers
 toggleButton("ESP All Parts", 50, espState)
 stepper("WalkSpeed", 90, speedState, 10, 16, 500, function(v)
     if player.Character and player.Character:FindFirstChild("Humanoid") then
@@ -86,6 +89,32 @@ stepper("WalkSpeed", 90, speedState, 10, 16, 500, function(v)
     end
 end)
 stepper("Click Delay (ms)", 140, clickState, 10, 10, 1000)
+
+-- Busca MineUtil dinamicamente
+local MineUtil
+do
+    for _, mod in ipairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
+        if mod:IsA("ModuleScript") and mod.Name == "MineUtil" then
+            MineUtil = require(mod)
+            break
+        end
+    end
+end
+
+-- Mining Range
+stepper("Mining Range", 180, rangeState, 5, 10, 500, function(v)
+    if MineUtil then
+        MineUtil.Range = v
+    end
+end)
+
+-- PickUp Speed
+stepper("PickUp Speed", 220, pickupState, 0.1, 0.1, 10, function(v)
+    if player.Character and player.Character.PrimaryPart then
+        player.Character.PrimaryPart:SetAttribute("PickUpSpeed", v)
+    end
+end)
+
 
 frame.Visible = true
 
@@ -113,7 +142,7 @@ Run.RenderStepped:Connect(function()
     local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
     if not root then return end
 
-for _, part in ipairs(workspace:GetDescendants()) do
+    for _, part in ipairs(workspace:GetDescendants()) do
         if espState.value and part:IsA("BasePart") then
             local dy = root.Position.Y - part.Position.Y
             if dy > 0 and dy <= 40 then
@@ -123,14 +152,14 @@ for _, part in ipairs(workspace:GetDescendants()) do
                     b.Color = Color3.new(1,0,0)
                     boxes[part] = b
                 end
-                local box = boxes[part]
                 local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
                 if onScreen then
+                    local box = boxes[part]
                     box.Visible = true
                     box.Position = Vector2.new(pos.X - 25, pos.Y - 25)
                     box.Size = Vector2.new(50, 50)
                 else
-                    box.Visible = false
+                    boxes[part].Visible = false
                 end
             elseif boxes[part] then
                 boxes[part]:Remove()
